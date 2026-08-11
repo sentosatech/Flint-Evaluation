@@ -1,0 +1,62 @@
+name: Deploy to GitHub Pages
+
+# Build and publish the site every time main changes.
+# Also lets you trigger a deploy manually from the Actions tab.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# GitHub Pages permissions — required for the deploy action to work.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Prevent concurrent deploys stomping on each other.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # The FE lives in the FE/ subdirectory of the repo, not at the root.
+    # This default makes all shell commands in this job run there.
+    # Actions themselves (checkout, setup-node) still run at the repo root.
+    defaults:
+      run:
+        working-directory: ./FE
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: FE/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./FE/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
